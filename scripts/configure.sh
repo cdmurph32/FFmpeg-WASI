@@ -32,6 +32,15 @@ FFMPEG_CONFIG_FLAGS_BASE=(
   --enable-libx264
   --enable-zlib
 
+  --disable-everything
+  --enable-decoder=h264
+  --enable-decoder=mjpeg
+  --enable-demuxer=mov
+  --enable-demuxer=mjpeg
+  --enable-encoder=libx264
+  --enable-muxer=mp4
+  --enable-protocol=file
+
   --extra-cflags="-I../build/include"
   --extra-ldflags="-L../build/lib"
 )

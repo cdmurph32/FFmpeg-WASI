@@ -1,10 +1,10 @@
 # FFmpeg-WASI
 
-FFmpeg-WASI compiles FFmpeg to WASM. Unlike [ffmpeg.wasm](https://github.com/ffmpegwasm/ffmpeg.wasm) the WASM binary is standalone and required no JavaScript glue.
+FFmpeg-WASI compiles FFmpeg to WASM. Unlike [ffmpeg.wasm](https://github.com/ffmpegwasm/ffmpeg.wasm) the WASM binary is standalone and requires no JavaScript glue.
 
 ## Clone
 
-To get started you can clone the repository and its submodules.
+Clone the repository and its submodules.
 
 ```sh
 git clone --recursive https://github.com/SebastiaanYN/FFmpeg-WASI.git
@@ -12,7 +12,15 @@ git clone --recursive https://github.com/SebastiaanYN/FFmpeg-WASI.git
 
 ## Build
 
-Building the project requires several dependencies and steps to be executed. To make it easier to build the project a Dockerfile is provided to build `ffmpeg.wasm` and `ffprobe.wasm`.
+### Native (macOS, recommended)
+
+Requires WASI-SDK 32 or later at `/opt/wasi-sdk` and `wasm-opt` (`brew install binaryen`).
+
+```sh
+./build-native.sh
+```
+
+### Docker
 
 ```sh
 DOCKER_BUILDKIT=1 docker build -t ffmpeg-wasi --output . .
@@ -20,39 +28,51 @@ DOCKER_BUILDKIT=1 docker build -t ffmpeg-wasi --output . .
 ./build.sh
 ```
 
-On Apple M1/M2 machines it might be necessary to set `DOCKER_DEFAULT_PLATFORM=linux/amd64`.
+On Apple Silicon set `DOCKER_DEFAULT_PLATFORM=linux/amd64`.
 
 ```sh
-DOCKER_DEFAULT_PLATFORM=linux/amd64 DOCKER_BUILDKIT=1 docker build -t ffmpeg-wasi --output . .
-# or
 DOCKER_DEFAULT_PLATFORM=linux/amd64 ./build.sh
 ```
 
-## Examples
+## Usage
 
-You can use any WASI compatible WASM runtime, like `wasmtime` and `wasmer`, to run the binary.
-
-Generating a thumbnail from a video.
+Requires a WASI-compatible runtime. [wasmtime](https://wasmtime.dev/)
 
 ```sh
-wasmtime --dir videos ffmpeg.wasm -- -i videos/video-1080p-60fps-2s.mp4 -ss 1 -vframes 1 videos/out.png
+wasmtime run --dir . ffmpeg.wasm -i input.mp4 -c:v libx264 output.mp4
 ```
 
-Converting from one video format to another.
+### Convert video to MP4 with libx264
 
 ```sh
-wasmtime --dir videos ffmpeg.wasm -- -i videos/video-15s.avi -c:v libx264 videos/out.mp4
+wasmtime run --dir videos ffmpeg.wasm -i videos/video-15s.avi -c:v libx264 -an videos/out.mp4
 ```
 
-## Encoders
+### Convert MJPEG stream to MP4
 
-Currently only `zlib` and `x264` are included in the build, but adding more should be fairly straightforward.
+```sh
+wasmtime run --dir /tmp ffmpeg.wasm \
+  -framerate 30 -f mjpeg -i /tmp/input.mjpeg \
+  -c:v libx264 -crf 1 -an \
+  /tmp/out.mp4
+```
+
+## Included components
+
+| Type | Components |
+|------|-----------|
+| Decoders | h264, mjpeg |
+| Encoders | libx264 |
+| Demuxers | mov (MP4), mjpeg |
+| Muxers | mp4 |
+| Protocols | file |
 
 ## Limitations
 
-Some codecs require multiple iterations over the input/output (like mp4), which means you cannot pipe the input/output. Instead you need to write the file to disk so FFmpeg can read it from there. Depending on where you're running your code this may not be possible.
-
-Additionally, WASI is still a very young technology so some FFmpeg features, like threading and networking, have to be disabled. In the future it might be possible to enable these features.
+- **No audio** — audio encoder is not included; pass `-an` to drop audio streams.
+- **No threading** — WASI has no pthreads; encode runs single-threaded.
+- **No networking** — disabled at compile time.
+- **File I/O only** — MP4 muxer requires seekable output; piping is not supported. Use preopened directories (`--dir`).
 
 ## License
 
