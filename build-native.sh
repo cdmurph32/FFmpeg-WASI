@@ -73,7 +73,8 @@ FFMPEG_CONFIG_FLAGS=(
   --disable-w32threads
   --disable-os2threads
   --pkg-config-flags="--static"
-  --enable-lto
+  # LTO disabled: LTO strips ffmpeg's OptionDef tables via dead-code elimination,
+  # causing all command-line flags to be treated as output filenames at runtime.
 
   --nm="$WASI_SDK/bin/nm"
   --ar="$WASI_SDK/bin/ar"
@@ -88,16 +89,35 @@ FFMPEG_CONFIG_FLAGS=(
   --enable-zlib
 
   --disable-everything
+  --enable-ffmpeg
+  --enable-avcodec
+  --enable-avformat
+  --enable-swscale
+  --enable-swresample
   --enable-decoder=h264
   --enable-decoder=mjpeg
   --enable-demuxer=mov
   --enable-demuxer=mjpeg
+  --enable-parser=h264
+  --enable-parser=mjpeg
   --enable-encoder=libx264
+  --enable-encoder=mjpeg
   --enable-muxer=mp4
+  --enable-muxer=mjpeg
+  --enable-muxer=image2
+  --enable-filter=format
+  --enable-filter=scale
   --enable-protocol=file
+  --enable-bsf=h264_mp4toannexb
 
-  --extra-cflags="-I$SCRIPT_DIR/build/include -D_WASI_EMULATED_PROCESS_CLOCKS -D_WASI_EMULATED_SIGNAL -msimd128"
-  --extra-ldflags="-L$SCRIPT_DIR/build/lib -lwasi-emulated-process-clocks -lwasi-emulated-signal"
+  --extra-cflags="-I$SCRIPT_DIR/build/include -D_WASI_EMULATED_PROCESS_CLOCKS -D_WASI_EMULATED_SIGNAL"
+  # Stack size: ff_mjpegenc_huffman_compute_bits allocates two PackageMergerList
+  # structs (~41 KB total) on the shadow stack. The default WASM shadow stack is
+  # 64 KB (__stack_pointer = 65536), which is insufficient — the call chain
+  # leading here consumes another ~10-15 KB, causing stack underflow past
+  # address 0 and a wasm trap: out of bounds memory access.
+  # 512 KB provides enough headroom for the full MJPEG encoder call chain.
+  --extra-ldflags="-L$SCRIPT_DIR/build/lib -lwasi-emulated-process-clocks -lwasi-emulated-signal -Wl,-z,stack-size=524288"
 )
 
 cd FFmpeg
